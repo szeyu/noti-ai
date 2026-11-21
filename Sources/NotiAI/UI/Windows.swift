@@ -13,10 +13,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let model = SettingsModel(Config.load())
         model.onSave = onSave
         self.model = model
-        let view = SettingsView(model: model) { [weak self] in self?.window?.close() }
 
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 780),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 600),
                              styleMask: [.titled, .closable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true
@@ -25,11 +24,34 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             w.isMovableByWindowBackground = true
             w.delegate = self
             window = w
-            window?.center()
         }
-        window?.contentView = NSHostingView(rootView: view)
+        guard let w = window else { return }
+
+        // Never taller than the free screen area, or Done ends up off the bottom edge on
+        // smaller displays (and above the Dock). The form scrolls when it needs the room.
+        let screen = w.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let windowHeight = min(780 + titlebarHeight(w), screen.height - 16)
+        let viewHeight = max(420, windowHeight - titlebarHeight(w))
+        w.contentView = NSHostingView(rootView: SettingsView(
+            model: model, onClose: { [weak self] in self?.window?.close() }, height: viewHeight))
+
+        var frame = NSRect(x: 0, y: 0, width: 520, height: viewHeight + titlebarHeight(w))
+        if w.isVisible, screen.contains(NSRect(origin: NSPoint(x: w.frame.minX, y: w.frame.maxY - frame.height),
+                                               size: frame.size)) {
+            frame.origin = NSPoint(x: w.frame.minX, y: w.frame.maxY - frame.height) // keep the top edge
+        } else {
+            frame.origin = NSPoint(x: screen.midX - frame.width / 2, y: screen.midY - frame.height / 2)
+        }
+        w.setFrame(frame, display: true)
+
         NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
+        w.makeKeyAndOrderFront(nil)
+    }
+
+    /// Height of the (transparent) title bar, which sits above the SwiftUI content.
+    private func titlebarHeight(_ w: NSWindow) -> CGFloat {
+        w.frame.height - w.contentLayoutRect.height
     }
 }
 
