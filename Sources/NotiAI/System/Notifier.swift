@@ -40,6 +40,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         ])
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
         toast.onClick = { [weak self] in
+            appLog.notice("card clicked")
             if let t = self?.lastToast { self?.onOpen?(t.q, t.a, t.s) }
         }
     }
@@ -142,6 +143,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ c: UNUserNotificationCenter, didReceive r: UNNotificationResponse,
                                 withCompletionHandler done: @escaping () -> Void) {
+        appLog.notice("notification clicked: \(r.actionIdentifier, privacy: .public)")
         DispatchQueue.main.async { self.lastClick = Date() }
         // Any click on it or its buttons means "done with this one": clear it everywhere.
         center.removeDeliveredNotifications(withIdentifiers: [r.notification.request.identifier])

@@ -9,7 +9,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) { model?.commitHotkey() }
 
-    func show() {
+    func show(reason: String) {
+        appLog.notice("settings shown: \(reason, privacy: .public)")
         let model = SettingsModel(Config.load())
         model.onSave = onSave
         self.model = model
@@ -85,9 +86,13 @@ final class AnswerWindowController: NSObject, NSWindowDelegate {
         clickMonitors = []
     }
 
-    func windowWillClose(_ notification: Notification) { stopWatching() }
+    func windowWillClose(_ notification: Notification) {
+        appLog.notice("answer closed")
+        stopWatching()
+    }
 
     func show(question: String, answer: String, source: String) {
+        appLog.notice("answer shown")
         if panel == nil {
             // Non-activating: showing the answer doesn't bring Noti AI to the front, which would
             // also raise an open Settings window from behind other apps.

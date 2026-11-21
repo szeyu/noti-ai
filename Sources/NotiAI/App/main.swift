@@ -103,7 +103,7 @@ enum Snapshot {
         // The real windows, as the app shows them (title bar insets, panels, card).
         // Translucent materials render as their fallback colour here.
         let settings = SettingsWindowController()
-        settings.show()
+        settings.show(reason: "snapshot")
         let answers = AnswerWindowController()
         answers.show(question: answer.question, answer: answer.answer, source: answer.source)
         let toast = ToastController()

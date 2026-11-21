@@ -1,8 +1,5 @@
 import Cocoa
 import ServiceManagement
-import os
-
-private let log = Logger(subsystem: "com.szeyu.notiai", category: "app")
 
 /// Owns the menu bar item, the shortcut, and the highlight → ask → notify flow.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -32,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshNotificationStatus()
 
         if !Selection.isTrusted { Selection.requestTrust() }
-        if config.needsKey { settings.show() }
+        if config.needsKey { settings.show(reason: "launch, no API key") }
     }
 
     /// Opening the app again (Finder, Spotlight) while it runs shows Settings,
@@ -40,14 +37,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Clicking one of our notifications sends the same event; that one is skipped.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         let from = Self.reopenSender()
-        log.notice("reopen from \(from ?? "unknown", privacy: .public)")
+        appLog.notice("reopen from \(from ?? "unknown", privacy: .public)")
         if let from, Self.notificationSenders.contains(where: { from.localizedCaseInsensitiveContains($0) }) {
+            return false
+        }
+        // Never on top of an answer you're reading.
+        if answers.panel?.isVisible == true {
+            appLog.notice("reopen ignored: answer is showing")
             return false
         }
         // Fallback if the sender is unknown: skip it when a notification click lands just before or after.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             if let click = Notifier.shared.lastClick, abs(click.timeIntervalSinceNow) < 3 { return }
-            self?.settings.show()
+            self?.settings.show(reason: "reopen from \(from ?? "unknown")")
         }
         return false
     }
@@ -207,7 +209,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let last { answers.show(question: last.q, answer: last.a, source: last.s) }
     }
 
-    @objc private func openSettings() { settings.show() }
+    @objc private func openSettings() { settings.show(reason: "menu") }
+
+    func applicationDidBecomeActive(_ n: Notification) {
+        appLog.notice("app became active; settings visible: \(self.settings.window?.isVisible == true)")
+    }
+    func applicationDidResignActive(_ n: Notification) { appLog.notice("app resigned active") }
 
     @objc private func openAccessibility() {
         Selection.requestTrust()
