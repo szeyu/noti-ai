@@ -86,8 +86,8 @@ enum Snapshot {
             render(SettingsView(model: SettingsModel(cfg)), appearance, dir.appendingPathComponent("settings-\(name).png"))
             render(answer, appearance, dir.appendingPathComponent("answer-\(name).png"))
             let advanced = SettingsModel(cfg)
-            advanced.showAdvanced = true
-            render(SettingsView(model: advanced, height: 1080), appearance, dir.appendingPathComponent("settings-advanced-\(name).png"))
+            advanced.tab = .instructions
+            render(SettingsView(model: advanced), appearance, dir.appendingPathComponent("settings-instructions-\(name).png"))
             render(ToastView(title: "Why is the sky blue?", message: "Sunlight scatters off air molecules, and shorter blue wavelengths scatter far more than red ones, so blue light reaches your eyes from every direction.", isError: false),
                    appearance, dir.appendingPathComponent("card-\(name).png"))
         }

@@ -14,7 +14,7 @@ final class SettingsModel: ObservableObject {
     @Published var cardOpacity: Double
     @Published var dismissOnKey: Bool
     @Published var systemPrompt: String
-    @Published var showAdvanced = false
+    @Published var tab: SettingsTab = .general
     @Published var models: [String] = []
     @Published var status: (text: String, ok: Bool)?
     @Published var busy = false
@@ -132,6 +132,8 @@ final class SettingsModel: ObservableObject {
 
 }
 
+enum SettingsTab: Hashable { case general, instructions }
+
 private extension String {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }
@@ -139,8 +141,8 @@ private extension String {
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     var onClose: () -> Void = {}
-    /// The window is 720pt tall and the form scrolls; snapshots can ask for more to show everything.
-    var height: CGFloat = 720
+    /// The window is 780pt tall and the form scrolls; snapshots can ask for more to show everything.
+    var height: CGFloat = 780
 
     private let hideChoices: [(Double, String)] = [
         (3, "After 3 seconds"), (5, "After 5 seconds"), (8, "After 8 seconds"),
@@ -150,6 +152,64 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            Picker("Section", selection: $model.tab) {
+                Text("General").tag(SettingsTab.general)
+                Text("Instructions").tag(SettingsTab.instructions)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+
+            switch model.tab {
+            case .general: general
+            case .instructions: instructions
+            }
+
+            footer
+        }
+        .frame(width: 520, height: height)
+        // Save as you go, like System Settings.
+        .onChange(of: model.provider) { _ in model.autosave() }
+        .onChange(of: model.apiKey) { _ in model.autosave() }
+        .onChange(of: model.model) { _ in model.autosave() }
+        .onChange(of: model.baseURL) { _ in model.autosave() }
+        .onChange(of: model.effort) { _ in model.autosave() }
+        .onChange(of: model.dismissAfter) { _ in model.autosave() }
+        .onChange(of: model.answerStyle) { _ in model.autosave() }
+        .onChange(of: model.cardOpacity) { _ in model.autosave() }
+        .onChange(of: model.dismissOnKey) { _ in model.autosave() }
+        .onChange(of: model.systemPrompt) { _ in model.autosave() }
+    }
+
+    private var instructions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Tell the AI how to answer. The text you highlight is sent after these instructions.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            TextEditor(text: $model.systemPrompt)
+                .font(.system(size: 13))
+                .lineSpacing(2)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.25)))
+            HStack(alignment: .top) {
+                Text("Ideas: always answer in Chinese, explain like I'm new to programming, or reply with only a translation.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 16)
+                Button("Reset to default") { model.systemPrompt = Config.defaultSystemPrompt }
+                    .disabled(model.systemPrompt == Config.defaultSystemPrompt)
+            }
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 14)
+    }
+
+    private var general: some View {
             Form {
                 Section {
                     Picker("Provider", selection: $model.provider) {
@@ -243,55 +303,9 @@ struct SettingsView: View {
                         }
                     }
                 }
-
-                Section {
-                    DisclosureGroup("Instructions for the AI", isExpanded: $model.showAdvanced) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            TextEditor(text: $model.systemPrompt)
-                                .font(.system(size: 12))
-                                .frame(height: 150)
-                                .scrollContentBackground(.hidden)
-                                .padding(6)
-                                .background(RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color(nsColor: .textBackgroundColor)))
-                                .overlay(RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.secondary.opacity(0.25)))
-                            HStack {
-                                Text("Your highlighted text is sent after these instructions.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button("Reset to default") { model.systemPrompt = Config.defaultSystemPrompt }
-                                    .disabled(model.systemPrompt == Config.defaultSystemPrompt)
-                            }
-                        }
-                        .padding(.top, 6)
-                    }
-                } header: {
-                    Text("Advanced")
-                } footer: {
-                    Text("For example: always answer in Chinese, explain like I'm new to programming, or reply with only a translation.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
-            // Save as you go, like System Settings.
-            .onChange(of: model.provider) { _ in model.autosave() }
-            .onChange(of: model.apiKey) { _ in model.autosave() }
-            .onChange(of: model.model) { _ in model.autosave() }
-            .onChange(of: model.baseURL) { _ in model.autosave() }
-            .onChange(of: model.effort) { _ in model.autosave() }
-            .onChange(of: model.dismissAfter) { _ in model.autosave() }
-            .onChange(of: model.answerStyle) { _ in model.autosave() }
-            .onChange(of: model.cardOpacity) { _ in model.autosave() }
-            .onChange(of: model.dismissOnKey) { _ in model.autosave() }
-            .onChange(of: model.systemPrompt) { _ in model.autosave() }
-
-            footer
-        }
-        .frame(width: 520, height: height)
     }
 
     private var header: some View {
@@ -329,7 +343,6 @@ struct SettingsView: View {
                 .disabled(model.busy)
             Button("Done") { if model.commitHotkey() { onClose() } }
                 .buttonStyle(MarkerButtonStyle())
-                .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 16)

@@ -16,7 +16,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let view = SettingsView(model: model) { [weak self] in self?.window?.close() }
 
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 720),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 780),
                              styleMask: [.titled, .closable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true

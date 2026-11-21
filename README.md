@@ -39,7 +39,7 @@ Noti AI sits in your menu bar. Select a word, an error message, a sentence in an
 
 ## How answers look
 
-Pick one in **Settings › Answers**.
+Pick one in **Settings › General › Answers**.
 
 **macOS notification.** A regular notification banner, like any other app's. It hides itself after a few seconds, and clicking it opens the full answer.
 
@@ -80,7 +80,7 @@ Then highlight some text and press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd>.
 
 Click **Fetch** next to the model field to list the models a provider offers. Each provider remembers its own key and model, so switching back and forth doesn't lose anything.
 
-To change how the AI answers, open **Advanced › Instructions for the AI** at the bottom of Settings. **Reset to default** brings back the original instructions.
+To change how the AI answers, open the **Instructions** tab in Settings and write your own. **Reset to default** brings back the original instructions.
 
 <p align="center">
   <img src="docs/settings.png" width="460" alt="The Settings window">
