@@ -61,8 +61,31 @@ final class AnswerPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { close() }
 }
 
-final class AnswerWindowController {
+final class AnswerWindowController: NSObject, NSWindowDelegate {
     private(set) var panel: AnswerPanel?
+    private var clickMonitors: [Any] = []
+
+    /// Clicking anywhere outside the answer closes it, like a popover.
+    private func watchOutsideClicks() {
+        stopWatching()
+        let kinds: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        // Clicks in other apps or on the desktop.
+        if let m = NSEvent.addGlobalMonitorForEvents(matching: kinds, handler: { [weak self] _ in
+            self?.panel?.close()
+        }) { clickMonitors.append(m) }
+        // Clicks in Noti AI's own windows other than this one (Settings, the menu bar icon).
+        if let m = NSEvent.addLocalMonitorForEvents(matching: kinds, handler: { [weak self] event in
+            if let panel = self?.panel, event.window !== panel { panel.close() }
+            return event
+        }) { clickMonitors.append(m) }
+    }
+
+    private func stopWatching() {
+        clickMonitors.forEach(NSEvent.removeMonitor)
+        clickMonitors = []
+    }
+
+    func windowWillClose(_ notification: Notification) { stopWatching() }
 
     func show(question: String, answer: String, source: String) {
         if panel == nil {
@@ -75,6 +98,7 @@ final class AnswerWindowController {
             p.level = .floating
             p.isReleasedWhenClosed = false
             p.hidesOnDeactivate = false
+            p.delegate = self
             panel = p
         }
         guard let panel else { return }
@@ -104,5 +128,6 @@ final class AnswerWindowController {
         }
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        watchOutsideClicks()
     }
 }
