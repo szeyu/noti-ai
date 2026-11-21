@@ -89,8 +89,10 @@ final class AnswerWindowController: NSObject, NSWindowDelegate {
 
     func show(question: String, answer: String, source: String) {
         if panel == nil {
+            // Non-activating: showing the answer doesn't bring Noti AI to the front, which would
+            // also raise an open Settings window from behind other apps.
             let p = AnswerPanel(contentRect: .zero,
-                                styleMask: [.titled, .closable, .fullSizeContentView],
+                                styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                                 backing: .buffered, defer: false)
             p.titlebarAppearsTransparent = true
             p.titleVisibility = .hidden
@@ -126,8 +128,8 @@ final class AnswerWindowController: NSObject, NSWindowDelegate {
         if let screen = NSScreen.main?.visibleFrame {
             panel.setFrameOrigin(NSPoint(x: screen.maxX - size.width - 18, y: screen.maxY - size.height - 18))
         }
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+        panel.makeKey() // so Esc works
         watchOutsideClicks()
     }
 }

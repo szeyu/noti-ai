@@ -1,5 +1,8 @@
 import Cocoa
 import ServiceManagement
+import os
+
+private let log = Logger(subsystem: "com.szeyu.notiai", category: "app")
 
 /// Owns the menu bar item, the shortcut, and the highlight → ask → notify flow.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -34,13 +37,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Opening the app again (Finder, Spotlight) while it runs shows Settings,
     /// since a menu bar app has no window of its own.
-    /// A notification click sends the same event, so wait a moment and skip it then.
+    /// Clicking one of our notifications sends the same event; that one is skipped.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            if let click = Notifier.shared.lastClick, abs(click.timeIntervalSinceNow) < 2 { return }
+        let from = Self.reopenSender()
+        log.notice("reopen from \(from ?? "unknown", privacy: .public)")
+        if let from, Self.notificationSenders.contains(where: { from.localizedCaseInsensitiveContains($0) }) {
+            return false
+        }
+        // Fallback if the sender is unknown: skip it when a notification click lands just before or after.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            if let click = Notifier.shared.lastClick, abs(click.timeIntervalSinceNow) < 3 { return }
             self?.settings.show()
         }
         return false
+    }
+
+    private static let notificationSenders = ["usernoted", "NotificationCenter", "UserNotificationCenter"]
+
+    /// Name of the process that sent the current "reopen" Apple event, if macOS says.
+    private static func reopenSender() -> String? {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              let pid = event.attributeDescriptor(forKeyword: keySenderPIDAttr)?.int32Value, pid > 0
+        else { return nil }
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            return app.bundleIdentifier ?? app.localizedName
+        }
+        var name = [CChar](repeating: 0, count: 256)
+        return proc_name(pid, &name, 256) > 0 ? String(cString: name) : "pid \(pid)"
     }
 
     // MARK: - Main flow
