@@ -34,9 +34,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Opening the app again (Finder, Spotlight) while it runs shows Settings,
     /// since a menu bar app has no window of its own.
+    /// A notification click sends the same event, so wait a moment and skip it then.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        settings.show()
-        return true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            if let click = Notifier.shared.lastClick, abs(click.timeIntervalSinceNow) < 2 { return }
+            self?.settings.show()
+        }
+        return false
     }
 
     // MARK: - Main flow

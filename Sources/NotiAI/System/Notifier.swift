@@ -26,6 +26,9 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     var dismissAfter: Double = 5
     /// (question, answer, source) when the user clicks an answer.
     var onOpen: ((String, String, String) -> Void)?
+    /// When a notification was last clicked. Clicking one also sends the app a "reopen"
+    /// event, which would otherwise show Settings on top of the answer.
+    private(set) var lastClick: Date?
     /// (title, body, source) when notifications are turned off, so nothing gets lost.
     var onBlocked: ((String, String, String) -> Void)?
 
@@ -139,6 +142,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ c: UNUserNotificationCenter, didReceive r: UNNotificationResponse,
                                 withCompletionHandler done: @escaping () -> Void) {
+        DispatchQueue.main.async { self.lastClick = Date() }
         // Any click on it or its buttons means "done with this one": clear it everywhere.
         center.removeDeliveredNotifications(withIdentifiers: [r.notification.request.identifier])
 
