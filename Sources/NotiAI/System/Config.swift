@@ -1,10 +1,26 @@
 import Foundation
+import CoreGraphics
 
 /// What Noti AI remembers for one provider, so switching providers keeps each key.
 struct ProviderSettings: Codable, Equatable {
     var apiKey = ""
     var model = ""
     var baseURL = ""
+}
+
+/// The part of the screen the screenshot shortcut reads. Stored relative to one display
+/// (points, top-left origin) so it stays put when other displays are added or moved.
+struct ScreenRegion: Codable, Equatable {
+    var displayID: UInt32
+    var displayName: String
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+
+    var rect: CGRect { CGRect(x: x, y: y, width: width, height: height) }
+    /// e.g. "640 × 400 on Built-in Retina Display"
+    var label: String { "\(Int(width)) × \(Int(height)) on \(displayName)" }
 }
 
 /// User settings, stored in ~/.config/noti-ai/config.json (mode 600: it holds API keys).
@@ -15,6 +31,11 @@ struct Config: Codable {
     var effort = "low"
     /// e.g. "cmd+option+a", "ctrl+shift+space"
     var hotkey = "cmd+option+a"
+    /// Sends the saved screen area instead of highlighted text.
+    var regionHotkey = "cmd+option+shift+a"
+    var region: ScreenRegion?
+    /// Outline the area briefly when it's captured. Off = nothing on screen shows it was read.
+    var flashRegion = true
     /// Seconds before a notification removes itself (also from Notification Center). 0 = never.
     var dismissAfter: Double = 5
     /// macOS notification, or Noti AI's own floating card.
@@ -86,6 +107,9 @@ struct Config: Codable {
         }
         if let v = f.effort, !v.isEmpty { cfg.effort = v }
         if let v = f.hotkey, !v.isEmpty { cfg.hotkey = v }
+        if let v = f.regionHotkey, !v.isEmpty { cfg.regionHotkey = v }
+        cfg.region = f.region
+        if let v = f.flashRegion { cfg.flashRegion = v }
         if let v = f.dismissAfter, v >= 0 { cfg.dismissAfter = v }
         if let v = f.systemPrompt, !v.isEmpty { cfg.systemPrompt = v }
         if let v = f.answerStyle { cfg.answerStyle = v }
@@ -115,6 +139,9 @@ private struct StoredConfig: Decodable {
     var model: String?    // v0.1
     var effort: String?
     var hotkey: String?
+    var regionHotkey: String?
+    var region: ScreenRegion?
+    var flashRegion: Bool?
     var dismissAfter: Double?
     var systemPrompt: String?
     var answerStyle: AnswerStyle?

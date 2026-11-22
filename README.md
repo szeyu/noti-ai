@@ -33,9 +33,10 @@ Noti AI sits in your menu bar. Select a word, an error message, a sentence in an
 | Short answers | Explains, translates, defines or fact-checks in a few lines. Click an answer to read all of it. |
 | Choice of model | Claude, OpenAI, OpenRouter, or a model on your own Mac through Ollama or LM Studio. |
 | Notification or card | Shows answers as standard macOS notifications or as a floating card whose opacity you set. |
+| Screen area | Save a part of your screen once, then press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> to ask about whatever it shows. Handy for images, charts, subtitles and apps that won't let you copy text. |
 | Your own instructions | Tell the AI how to answer: always in Chinese, beginner-friendly, translation only, or anything else. |
 | Auto-hide | Answers disappear after a few seconds or when you start typing. Your clipboard keeps what you copied. |
-| Privacy | Sends text only when you press the shortcut, and only to your chosen provider. The app has no account or analytics. |
+| Privacy | Sends text or a picture of your screen area only when you press a shortcut, and only to your chosen provider. The app has no account or analytics. |
 
 ## How answers look
 
@@ -55,6 +56,18 @@ Either way, clicking an answer opens it in full:
   <img src="docs/answer.png" width="440" alt="The full answer window">
 </p>
 
+## Ask about part of the screen
+
+Some things can't be highlighted: text inside an image, a chart, a video's subtitles, a game, a remote desktop. For those, save an area of the screen once:
+
+1. Menu bar icon › **Set screen area…**, or **Set area…** in Settings.
+2. Drag a rectangle over the part of the screen you want. <kbd>Esc</kbd> cancels.
+3. Press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> whenever you want to ask about what's in it.
+
+The area flashes yellow so you can see what was sent. To keep it discreet, turn off **Outline the area when it's read** in Settings. The picture stays in memory, goes to your provider, and is never saved to disk. Your instructions apply to it as well.
+
+This needs macOS 14 or later, **Screen Recording** permission, and a model that can read images. Claude and current OpenAI models can. With Ollama or LM Studio, pick a vision model such as Qwen-VL or LLaVA.
+
 ## Install
 
 1. [Download NotiAI.dmg](https://github.com/szeyu/noti-ai/releases/latest/download/NotiAI.dmg), open it, and drag **Noti AI** into **Applications**.
@@ -62,10 +75,11 @@ Either way, clicking an answer opens it in full:
 3. In the Settings window that opens, pick a provider and paste your API key.
 4. Turn on **Noti AI** in **System Settings › Privacy & Security › Accessibility**. This is how it reads the text you've highlighted.
 5. Click **Allow** when macOS asks about notifications.
+6. If you use the screen area shortcut, turn on **Noti AI** in **System Settings › Privacy & Security › Screen & System Audio Recording**, then quit and reopen Noti AI.
 
 Then highlight some text and press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd>.
 
-> After you update to a new version, you may need to switch Accessibility off and on again for Noti AI.
+> After you update to a new version, you may need to switch Accessibility and Screen Recording off and on again for Noti AI.
 
 ## Providers
 
@@ -91,16 +105,18 @@ To change how the AI answers, open the **Instructions** tab in Settings and writ
 | To | Do this |
 |---|---|
 | Ask about text | Highlight it and press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd> |
+| Ask about the screen area | Press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> |
+| Move the screen area | Menu bar icon › **Change screen area…** |
 | Read the whole answer | Click the notification or card. <kbd>Esc</kbd> closes the window. |
 | Copy the answer | **Copy answer** on the notification or in the window |
 | See the last answer again | Menu bar icon › **Show last answer** |
-| Change model, look or shortcut | Menu bar icon › **Settings…**, or open Noti AI again from Applications |
+| Change model, look or shortcuts | Menu bar icon › **Settings…**, or open Noti AI again from Applications |
 
 Settings save as you change them.
 
 ## Privacy
 
-Noti AI sends the text you highlight to the provider you chose, and only when you press the shortcut. With Ollama or LM Studio, it never leaves your Mac. API keys are stored in `~/.config/noti-ai/config.json`, which only your user account can read. The app has no servers or analytics of its own.
+Noti AI sends the text you highlight, or a picture of your screen area, to the provider you chose, and only when you press a shortcut. Screen area pictures are kept in memory and never saved to disk. With Ollama or LM Studio, nothing leaves your Mac. API keys are stored in `~/.config/noti-ai/config.json`, which only your user account can read. The app has no servers or analytics of its own.
 
 ## Build from source
 
@@ -124,14 +140,15 @@ To publish a version, push a tag (`git tag v0.3.0 && git push origin v0.3.0`). G
 Sources/NotiAI/
   App/      entry point, menu bar, the highlight-to-answer flow
   AI/       provider presets, Anthropic and OpenAI-compatible clients
-  System/   settings file, global shortcut, reading the selection, notifications
-  UI/       theme, Settings, answer window, floating card
+  System/   settings file, shortcuts, reading the selection, screen capture, notifications
+  UI/       theme, Settings, answer window, floating card, screen area picker
 Assets/     make-icon.swift draws the app icon
 ```
 
 ```sh
 APP=~/Applications/NotiAI.app/Contents/MacOS/NotiAI
 $APP --ask "what is a monad?"   # ask the configured model from the terminal
+$APP --ask-image shot.png      # send an image the way the screen area shortcut does
 $APP --check-config            # show the loaded settings and available models
 $APP --snapshot ./shots        # render the windows to PNG in light and dark mode
 ```

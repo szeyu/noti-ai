@@ -92,6 +92,7 @@ final class ToastController {
     }
 
     func hide() {
+        if panel?.isVisible == true { appLog.notice("card hidden") }
         hideWork?.cancel()
         guard let panel, panel.isVisible else { return }
         NSAnimationContext.runAnimationGroup({ $0.duration = 0.2; panel.animator().alphaValue = 0 },

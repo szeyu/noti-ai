@@ -15,7 +15,8 @@ enum AnthropicClient {
         return req
     }
 
-    static func ask(_ text: String, settings: ProviderSettings, config: Config) async throws -> String {
+    static func ask(_ text: String, image: EncodedImage? = nil, settings: ProviderSettings,
+                    config: Config) async throws -> String {
         let model = settings.model.isEmpty ? Provider.anthropic.defaultModel : settings.model
         var req = request("messages", key: settings.apiKey)
         req.httpMethod = "POST"
@@ -28,7 +29,7 @@ enum AnthropicClient {
             "max_tokens": 16000,
             "system": config.systemPrompt,
             "output_config": ["effort": config.effort],
-            "messages": [["role": "user", "content": text]],
+            "messages": [["role": "user", "content": content(text, image: image)]],
         ]
         if fallbackModels.contains(model) {
             req.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
@@ -54,6 +55,17 @@ enum AnthropicClient {
 
         guard !answer.isEmpty else { throw AIError.empty(stopReason) }
         return stopReason == "max_tokens" ? answer + " …(cut off)" : answer
+    }
+
+    /// Plain text, or the image block followed by the text (images go first).
+    private static func content(_ text: String, image: EncodedImage?) -> Any {
+        guard let image else { return text }
+        return [
+            ["type": "image",
+             "source": ["type": "base64", "media_type": image.mediaType,
+                        "data": image.data.base64EncodedString()]],
+            ["type": "text", "text": text],
+        ]
     }
 
     static func models(settings: ProviderSettings) async throws -> [String] {

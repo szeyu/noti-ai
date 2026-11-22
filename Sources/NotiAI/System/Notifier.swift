@@ -61,6 +61,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func answer(_ answer: String, question: String, source: String) {
+        appLog.notice("showing answer (\(answer.count) chars) as \(self.style == .card ? "card" : "notification", privacy: .public)")
         if style == .card {
             DispatchQueue.main.async {
                 self.lastToast = (question, answer, source)
@@ -74,6 +75,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func error(_ message: String) {
+        appLog.notice("showing error as \(self.style == .card ? "card" : "notification", privacy: .public): \(message, privacy: .public)")
         if style == .card {
             DispatchQueue.main.async {
                 self.lastToast = nil
@@ -100,6 +102,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Ignore the ⌘C Noti AI itself sends to copy your selection.
             if event.modifierFlags.contains(.command) && event.keyCode == 8 { return }
+            if self?.toast.panel?.isVisible == true { appLog.notice("a key press hid the answer") }
             self?.dismissAll()
         }
     }

@@ -6,11 +6,17 @@ final class Hotkey {
     private var ref: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private let action: () -> Void
+    private let id: UInt32
     let display: String
+
+    /// Every shortcut gets its own ID, because each handler sees every hotkey press.
+    private static var nextID: UInt32 = 1
 
     /// Parses strings like "cmd+option+a" and registers them. Returns nil if invalid or taken.
     init?(_ spec: String, action: @escaping () -> Void) {
         self.action = action
+        id = Hotkey.nextID
+        Hotkey.nextID += 1
         var mods: UInt32 = 0
         var key: UInt32?
         for raw in spec.lowercased().split(separator: "+") {
@@ -31,14 +37,25 @@ final class Hotkey {
         var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                  eventKind: UInt32(kEventHotKeyPressed))
         let me = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, userData in
-            guard let userData else { return noErr }
-            Unmanaged<Hotkey>.fromOpaque(userData).takeUnretainedValue().action()
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
+            guard let event, let userData else { return OSStatus(eventNotHandledErr) }
+            var pressed = EventHotKeyID()
+            let got = GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                        EventParamType(typeEventHotKeyID), nil,
+                                        MemoryLayout<EventHotKeyID>.size, nil, &pressed)
+            let me = Unmanaged<Hotkey>.fromOpaque(userData).takeUnretainedValue()
+            appLog.notice("hotkey event: got \(got) id \(pressed.id), handler for id \(me.id) (\(me.display, privacy: .public))")
+            // Not ours: let the other shortcut's handler have it.
+            guard got == noErr, pressed.signature == Hotkey.signature, pressed.id == me.id else {
+                return OSStatus(eventNotHandledErr)
+            }
+            me.action()
             return noErr
         }, 1, &type, me, &handler)
 
-        let id = EventHotKeyID(signature: OSType(0x4E4F5449), id: 1) // 'NOTI'
-        let status = RegisterEventHotKey(key, mods, id, GetApplicationEventTarget(), 0, &ref)
+        let hotkeyID = EventHotKeyID(signature: Hotkey.signature, id: id)
+        let status = RegisterEventHotKey(key, mods, hotkeyID, GetApplicationEventTarget(), 0, &ref)
+        appLog.notice("register \(spec, privacy: .public) as id \(self.id): status \(status)")
         guard status == noErr else {
             if let handler { RemoveEventHandler(handler) }
             return nil
@@ -62,6 +79,8 @@ final class Hotkey {
         }
         return "⌃⌥⇧⌘".filter { mods.contains($0) } + key
     }
+
+    private static let signature = OSType(0x4E4F5449) // 'NOTI'
 
     deinit {
         if let ref { UnregisterEventHotKey(ref) }

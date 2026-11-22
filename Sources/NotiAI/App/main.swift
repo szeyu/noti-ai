@@ -3,6 +3,7 @@ import SwiftUI
 
 // Entry point. Besides the normal menu bar app there are two developer modes:
 //   NotiAI --ask "some text"   send text to the configured model, print + notify the answer
+//   NotiAI --ask-image <file>  send an image the way the screen area shortcut does, print the answer
 //   NotiAI --check-config      show the loaded settings and the provider's model list
 //   NotiAI --snapshot <dir>    render the Settings and answer views to PNGs (light + dark)
 
@@ -29,6 +30,23 @@ if let i = args.firstIndex(of: "--ask"), i + 1 < args.count {
         exit(0)
     }
     app.run()
+} else if let i = args.firstIndex(of: "--ask-image"), i + 1 < args.count {
+    let cfg = Config.load()
+    Task {
+        do {
+            guard let src = NSImage(contentsOfFile: args[i + 1])?
+                .cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                throw CaptureError.failed("couldn't read \(args[i + 1])")
+            }
+            let image = try ScreenCapture.encode(src)
+            print("sending \(image.pixelWidth)x\(image.pixelHeight) \(image.mediaType), \(image.data.count) bytes")
+            print(try await AIService.ask(AIService.screenshotNote, image: image, config: cfg))
+        } catch {
+            FileHandle.standardError.write(Data("Error: \(error.localizedDescription)\n".utf8))
+        }
+        exit(0)
+    }
+    app.run()
 } else if args.contains("--check-config") {
     // Prints what was loaded (never the key itself) and asks the provider for its model list.
     let cfg = Config.load()
@@ -37,7 +55,8 @@ if let i = args.firstIndex(of: "--ask"), i + 1 < args.count {
     print("provider: \(cfg.provider.displayName)")
     print("model:    \(s.model.isEmpty ? "(none)" : s.model)")
     print("key:      \(s.apiKey.isEmpty ? "(none)" : "set, \(s.apiKey.count) characters")")
-    print("shortcut: \(Hotkey.symbols(for: cfg.hotkey))   hide after: \(cfg.dismissAfter)s")
+    print("shortcut: \(Hotkey.symbols(for: cfg.hotkey))   screen area: \(Hotkey.symbols(for: cfg.regionHotkey))   hide after: \(cfg.dismissAfter)s")
+    print("area:     \(cfg.region?.label ?? "(not set)")   screen recording: \(ScreenCapture.hasPermission ? "on" : "off")")
     Task {
         do {
             let models = try await AIService.models(provider: cfg.provider, settings: s)
@@ -78,12 +97,15 @@ enum Snapshot {
         cfg.set(ProviderSettings(apiKey: "sk-or-demo", model: "anthropic/claude-sonnet-5.5", baseURL: ""), for: .openrouter)
         cfg.answerStyle = .card
         cfg.cardOpacity = 0.6
+        cfg.region = ScreenRegion(displayID: 1, displayName: "Built-in Retina Display",
+                                  x: 200, y: 160, width: 640, height: 400)
         let answer = AnswerView(
             question: "What does idempotent mean in an HTTP API, and why does PUT have it but POST doesn't?",
             answer: "Idempotent means sending the same request twice leaves the server in the same state as sending it once. PUT replaces a resource with what you send, so repeating it changes nothing further. POST usually creates something new each time, so repeating it makes duplicates.",
             source: "claude-sonnet-5-5 · Anthropic")
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-            render(SettingsView(model: SettingsModel(cfg)), appearance, dir.appendingPathComponent("settings-\(name).png"))
+            // Taller than the window so the README shows every section without scrolling.
+            render(SettingsView(model: SettingsModel(cfg), height: 960), appearance, dir.appendingPathComponent("settings-\(name).png"))
             render(answer, appearance, dir.appendingPathComponent("answer-\(name).png"))
             let advanced = SettingsModel(cfg)
             advanced.tab = .instructions

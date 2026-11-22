@@ -6,6 +6,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private(set) var window: NSWindow?
     private var model: SettingsModel?
     var onSave: (Config) -> String? = { _ in nil }
+    var onPickRegion: () -> Void = {}
+
+    /// The model behind the open Settings window, if it's open. Changes made elsewhere
+    /// (the area picker) go through it, or its next autosave would undo them.
+    var liveModel: SettingsModel? { window?.isVisible == true ? model : nil }
 
     func windowWillClose(_ notification: Notification) { model?.commitHotkey() }
 
@@ -13,6 +18,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         appLog.notice("settings shown: \(reason, privacy: .public)")
         let model = SettingsModel(Config.load())
         model.onSave = onSave
+        model.onPickRegion = onPickRegion
         self.model = model
 
         if window == nil {

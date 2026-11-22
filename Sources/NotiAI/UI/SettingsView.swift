@@ -9,6 +9,10 @@ final class SettingsModel: ObservableObject {
     @Published var baseURL = ""
     @Published var effort: String
     @Published var hotkey: String
+    @Published var regionHotkey: String
+    /// Set by the area picker; saved like every other setting so autosave never drops it.
+    @Published var region: ScreenRegion?
+    @Published var flashRegion: Bool
     @Published var dismissAfter: Double
     @Published var answerStyle: AnswerStyle
     @Published var cardOpacity: Double
@@ -23,20 +27,27 @@ final class SettingsModel: ObservableObject {
     private var base: Config
     /// The shortcut currently registered. Typing in the field doesn't change it until you press Return.
     private var appliedHotkey: String
+    private var appliedRegionHotkey: String
     /// Applies the config; returns a message to show if it couldn't.
     var onSave: (Config) -> String? = { _ in nil }
+    /// Opens the screen-area picker.
+    var onPickRegion: () -> Void = {}
 
     init(_ config: Config) {
         base = config
         provider = config.provider
         effort = config.effort
         hotkey = config.hotkey
+        regionHotkey = config.regionHotkey
+        region = config.region
+        flashRegion = config.flashRegion
         dismissAfter = config.dismissAfter
         answerStyle = config.answerStyle
         cardOpacity = config.cardOpacity
         dismissOnKey = config.dismissOnKey
         systemPrompt = config.systemPrompt
         appliedHotkey = config.hotkey
+        appliedRegionHotkey = config.regionHotkey
         for p in Provider.allCases { drafts[p] = config.settings(for: p) }
         load(config.provider)
     }
@@ -58,15 +69,18 @@ final class SettingsModel: ObservableObject {
     private var current: ProviderSettings { ProviderSettings(apiKey: apiKey.trimmed, model: model.trimmed, baseURL: baseURL.trimmed) }
 
     /// The config as shown in the window, with the shortcut that is actually registered.
-    var config: Config { build(hotkey: appliedHotkey) }
+    var config: Config { build(hotkey: appliedHotkey, regionHotkey: appliedRegionHotkey) }
 
-    private func build(hotkey: String) -> Config {
+    private func build(hotkey: String, regionHotkey: String) -> Config {
         var c = base
         drafts[provider] = current
         for (p, s) in drafts { c.set(s, for: p) }
         c.provider = provider
         c.effort = effort
         c.hotkey = hotkey
+        c.regionHotkey = regionHotkey
+        c.region = region
+        c.flashRegion = flashRegion
         c.dismissAfter = dismissAfter
         c.answerStyle = answerStyle
         c.cardOpacity = cardOpacity
@@ -84,18 +98,31 @@ final class SettingsModel: ObservableObject {
         catch { status = ("Couldn't save settings: \(error.localizedDescription)", false) }
     }
 
-    /// Registers the typed shortcut. Returns false (and explains) if it can't be used.
+    /// Registers the typed shortcuts. Returns false (and explains) if they can't be used.
     @discardableResult
     func commitHotkey() -> Bool {
-        let typed = hotkey.trimmed.lowercased()
-        let wanted = typed.isEmpty ? Config().hotkey : typed
-        guard wanted != appliedHotkey else { hotkey = wanted; return true }
-        let cfg = build(hotkey: wanted)
+        func clean(_ s: String, _ fallback: String) -> String {
+            let t = s.trimmed.lowercased()
+            return t.isEmpty ? fallback : t
+        }
+        let text = clean(hotkey, Config().hotkey)
+        let shot = clean(regionHotkey, Config().regionHotkey)
+        guard text != appliedHotkey || shot != appliedRegionHotkey else {
+            hotkey = text; regionHotkey = shot; return true
+        }
+        guard Hotkey.symbols(for: text) != Hotkey.symbols(for: shot) else {
+            status = ("The two shortcuts must be different.", false)
+            return false
+        }
+        let cfg = build(hotkey: text, regionHotkey: shot)
         if let problem = onSave(cfg) { status = (problem, false); return false }
-        appliedHotkey = wanted
-        hotkey = wanted
+        let changed = shot != appliedRegionHotkey ? shot : text
+        appliedHotkey = text
+        appliedRegionHotkey = shot
+        hotkey = text
+        regionHotkey = shot
         do { try cfg.save(); base = cfg } catch {}
-        status = ("Shortcut set to \(Hotkey.symbols(for: wanted)).", true)
+        status = ("Shortcut set to \(Hotkey.symbols(for: changed)).", true)
         return true
     }
 
@@ -181,6 +208,8 @@ struct SettingsView: View {
         .onChange(of: model.cardOpacity) { _ in model.autosave() }
         .onChange(of: model.dismissOnKey) { _ in model.autosave() }
         .onChange(of: model.systemPrompt) { _ in model.autosave() }
+        .onChange(of: model.region) { _ in model.autosave() }
+        .onChange(of: model.flashRegion) { _ in model.autosave() }
     }
 
     private var instructions: some View {
@@ -288,24 +317,50 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Shortcut") {
-                    LabeledContent("Shortcut") {
+                Section {
+                    shortcutRow("Ask about text", text: $model.hotkey, placeholder: "cmd+option+a")
+                    shortcutRow("Ask about screen area", text: $model.regionHotkey,
+                                placeholder: "cmd+option+shift+a")
+                    LabeledContent("Screen area") {
                         HStack(spacing: 8) {
-                            TextField("Shortcut", text: $model.hotkey, prompt: Text("cmd+option+a"))
-                                .labelsHidden()
-                                .frame(width: 150)
-                                .onSubmit { model.commitHotkey() }
-                                .help("Type a shortcut and press Return")
-                            Text(Hotkey.symbols(for: model.hotkey))
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                            Text(model.region?.label ?? "Not set")
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                             Spacer()
+                            if model.region != nil {
+                                Button("Clear") { model.region = nil }
+                            }
+                            Button(model.region == nil ? "Set area…" : "Change…") { model.onPickRegion() }
                         }
                     }
+                    Toggle("Outline the area when it's read", isOn: $model.flashRegion)
+                } header: {
+                    Text("Shortcuts")
+                } footer: {
+                    Text("Type a shortcut and press Return. The screen area shortcut sends a picture of the area you set, which never gets saved to disk. It needs Screen Recording permission and a model that can read images.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
+    }
+
+    private func shortcutRow(_ title: String, text: Binding<String>, placeholder: String) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 8) {
+                TextField(title, text: text, prompt: Text(placeholder))
+                    .labelsHidden()
+                    .frame(width: 170)
+                    .onSubmit { model.commitHotkey() }
+                    .help("Type a shortcut and press Return")
+                Text(Hotkey.symbols(for: text.wrappedValue))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
     }
 
     private var header: some View {

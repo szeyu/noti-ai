@@ -5,6 +5,7 @@ import SwiftUI
 enum Theme {
     static let ink = Color(red: 0x1B / 255, green: 0x27 / 255, blue: 0x47 / 255)
     static let marker = Color(red: 1.0, green: 0xD8 / 255, blue: 0x4D / 255)
+    static let markerNS = NSColor(red: 1.0, green: 0xD8 / 255, blue: 0x4D / 255, alpha: 1)
 }
 
 /// A chisel-tip highlighter stroke: slanted ends and a faint wobble, like a real marker.

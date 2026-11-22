@@ -5,6 +5,8 @@ import ServiceManagement
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var config = Config.load()
     private var hotkey: Hotkey?
+    private var regionHotkey: Hotkey?
+    private let picker = RegionPicker()
     private var statusItem: NSStatusItem!
     private let answers = AnswerWindowController()
     private let settings = SettingsWindowController()
@@ -21,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Notifier.shared.onBlocked = { [weak self] q, a, s in self?.answers.show(question: q, answer: a, source: s) }
 
         settings.onSave = { [weak self] cfg in self?.apply(cfg) }
+        settings.onPickRegion = { [weak self] in self?.pickRegion(thenAsk: false) }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         updateIcon()
@@ -28,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
         refreshNotificationStatus()
 
+        appLog.notice("launched; accessibility: \(Selection.isTrusted), screen recording: \(ScreenCapture.hasPermission), area: \(self.config.region?.label ?? "none", privacy: .public)")
         if !Selection.isTrusted { Selection.requestTrust() }
         if config.needsKey { settings.show(reason: "launch, no API key") }
     }
@@ -80,11 +84,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         inFlight += 1
         Task.detached {
             defer { Task { @MainActor in self.inFlight -= 1 } }
-            guard let text = Selection.grab() else {
+            let grabbed = Selection.grab()
+            appLog.notice("selection: \(grabbed.map { "\($0.count) characters" } ?? "nothing", privacy: .public)")
+            guard let text = grabbed else {
                 Notifier.shared.error("Nothing selected. Highlight some text, then press the shortcut.")
                 return
             }
             do {
+                appLog.notice("asking \(cfg.modelLabel, privacy: .public)")
                 let answer = try await AIService.ask(text, config: cfg)
                 let source = cfg.modelLabel
                 await MainActor.run { self.last = (text, answer, source); self.rebuildMenu() }
@@ -95,16 +102,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @objc func askAboutRegion() {
+        appLog.notice("hotkey fired: screen area")
+        guard let region = config.region else {
+            pickRegion(thenAsk: true)
+            return
+        }
+        let cfg = config
+        inFlight += 1
+        Task { @MainActor in
+            defer { self.inFlight -= 1 }
+            do {
+                let image = try await ScreenCapture.capture(region)
+                appLog.notice("screen area captured: \(image.pixelWidth)x\(image.pixelHeight) px \(image.mediaType, privacy: .public), \(image.data.count) bytes")
+                if cfg.flashRegion { RegionFlash.show(region) }
+                let question = cfg.flashRegion ? "Screen area (\(region.label))" : "Screen area"
+                appLog.notice("asking \(cfg.modelLabel, privacy: .public) about the screen area")
+                let answer = try await AIService.ask(AIService.screenshotNote, image: image, config: cfg)
+                self.last = (question, answer, cfg.modelLabel)
+                self.rebuildMenu()
+                Notifier.shared.answer(answer, question: question, source: cfg.modelLabel)
+            } catch {
+                appLog.notice("screen area failed: \(error.localizedDescription, privacy: .public)")
+                if case CaptureError.noPermission = error { ScreenCapture.requestPermission() }
+                Notifier.shared.error(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Lets you drag out the screen area. Settings is hidden meanwhile so it doesn't cover
+    /// the screen, then comes back. The area is saved through Settings when it's open.
+    private func pickRegion(thenAsk: Bool) {
+        guard !picker.isPicking else { return }
+        let settingsWindow = settings.liveModel != nil ? settings.window : nil
+        // Started from the Settings window (Noti AI in front) or from the menu/shortcut
+        // while you were in another app: put Settings back the way it was.
+        let wasActive = NSApp.isActive
+        settingsWindow?.orderOut(nil)
+        picker.pick(current: config.region) { [weak self] region in
+            guard let self else { return }
+            if wasActive { settingsWindow?.makeKeyAndOrderFront(nil) } else { settingsWindow?.orderBack(nil) }
+            guard let region else { return }
+            appLog.notice("screen area set: \(region.label, privacy: .public)")
+            if let model = self.settings.liveModel {
+                model.region = region // autosaves and applies
+            } else {
+                var c = self.config
+                c.region = region
+                try? c.save()
+                _ = self.apply(c)
+            }
+            if thenAsk { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.askAboutRegion() } }
+        }
+    }
+
     /// Applies new settings from the Settings window. Returns a message if it can't.
     private func apply(_ cfg: Config) -> String? {
-        if cfg.hotkey != config.hotkey {
-            // Release the old shortcut first so re-registering can't collide with itself.
+        if cfg.hotkey != config.hotkey || cfg.regionHotkey != config.regionHotkey {
+            // Release the old shortcuts first so re-registering can't collide with itself.
             hotkey = nil
-            guard let hk = makeHotkey(cfg.hotkey) else {
+            regionHotkey = nil
+            func restore() {
                 hotkey = makeHotkey(config.hotkey)
+                regionHotkey = makeRegionHotkey(config.regionHotkey)
+            }
+            guard let hk = makeHotkey(cfg.hotkey) else {
+                restore()
                 return "The shortcut \(Hotkey.symbols(for: cfg.hotkey)) is invalid or already used by another app."
             }
             hotkey = hk
+            guard let rk = makeRegionHotkey(cfg.regionHotkey) else {
+                hotkey = nil
+                restore()
+                return "The shortcut \(Hotkey.symbols(for: cfg.regionHotkey)) is invalid or already used by another app."
+            }
+            regionHotkey = rk
         }
         config = cfg
         Notifier.shared.configure(cfg)
@@ -115,14 +187,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Shortcut
 
     private func makeHotkey(_ spec: String) -> Hotkey? {
-        Hotkey(spec) { [weak self] in DispatchQueue.main.async { self?.askAboutSelection() } }
+        Hotkey(spec) { [weak self] in
+            appLog.notice("hotkey fired: text")
+            DispatchQueue.main.async { self?.askAboutSelection() }
+        }
+    }
+
+    private func makeRegionHotkey(_ spec: String) -> Hotkey? {
+        Hotkey(spec) { [weak self] in DispatchQueue.main.async { self?.askAboutRegion() } }
     }
 
     private func registerHotkey() {
         hotkey = nil
+        regionHotkey = nil
         hotkey = makeHotkey(config.hotkey)
-        if hotkey == nil {
-            Notifier.shared.error("Couldn't set the shortcut \(Hotkey.symbols(for: config.hotkey)). It may be invalid or used by another app. Pick another in Settings.")
+        regionHotkey = makeRegionHotkey(config.regionHotkey)
+        for (hk, spec) in [(hotkey, config.hotkey), (regionHotkey, config.regionHotkey)] where hk == nil {
+            Notifier.shared.error("Couldn't set the shortcut \(Hotkey.symbols(for: spec)). It may be invalid or used by another app. Pick another in Settings.")
         }
     }
 
@@ -151,6 +232,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let ask = add("Ask about selection", #selector(askAboutSelection))
         if let hotkey { ask.title += "    \(hotkey.display)" }
+        let shot = add("Ask about screen area", #selector(askAboutRegion))
+        if let regionHotkey { shot.title += "    \(regionHotkey.display)" }
+        _ = add(config.region == nil ? "Set screen area…" : "Change screen area…", #selector(setRegionFromMenu))
         _ = add("Show last answer", #selector(showLast), enabled: last != nil)
         menu.addItem(.separator())
 
@@ -162,6 +246,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 #selector(openAccessibility))
         _ = add(notificationsAllowed ? "Notifications are on" : "Turn on notifications…",
                 #selector(openNotifications))
+        if config.region != nil {
+            _ = add(ScreenCapture.hasPermission ? "Screen Recording is on" : "Turn on Screen Recording…",
+                    #selector(openScreenRecording))
+        }
         let login = add("Start at login", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(.separator())
@@ -219,6 +307,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openAccessibility() {
         Selection.requestTrust()
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
+
+    @objc private func setRegionFromMenu() { pickRegion(thenAsk: false) }
+
+    @objc private func openScreenRecording() {
+        ScreenCapture.requestPermission()
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
     }
 
     @objc private func openNotifications() {

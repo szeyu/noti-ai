@@ -3,8 +3,8 @@ import Foundation
 /// OpenAI chat-completions client. Also serves OpenRouter, Ollama, LM Studio and any
 /// other server that implements the same endpoint.
 enum OpenAIClient {
-    static func ask(_ text: String, provider: Provider, settings: ProviderSettings,
-                    config: Config) async throws -> String {
+    static func ask(_ text: String, image: EncodedImage? = nil, provider: Provider,
+                    settings: ProviderSettings, config: Config) async throws -> String {
         var req = try request(provider: provider, settings: settings, path: "chat/completions")
         guard !settings.model.isEmpty else { throw AIError.missingModel }
         req.httpMethod = "POST"
@@ -16,7 +16,7 @@ enum OpenAIClient {
             "model": settings.model,
             "messages": [
                 ["role": "system", "content": config.systemPrompt],
-                ["role": "user", "content": text],
+                ["role": "user", "content": userContent(text, image: image)],
             ],
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -48,6 +48,17 @@ enum OpenAIClient {
     }
 
     // MARK: - Helpers
+
+    /// Plain text, or text plus the image as a data URL (the format OpenAI, OpenRouter,
+    /// Ollama and LM Studio all accept).
+    private static func userContent(_ text: String, image: EncodedImage?) -> Any {
+        guard let image else { return text }
+        return [
+            ["type": "text", "text": text],
+            ["type": "image_url",
+             "image_url": ["url": "data:\(image.mediaType);base64,\(image.data.base64EncodedString())"]],
+        ]
+    }
 
     private static func request(provider: Provider, settings: ProviderSettings,
                                 path: String) throws -> URLRequest {
