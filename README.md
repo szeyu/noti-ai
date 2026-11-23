@@ -5,7 +5,7 @@
 <h1 align="center">Noti AI</h1>
 
 <p align="center">
-  Highlight text anywhere on your Mac, press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd>, and get the answer as a notification.
+  Ask AI about anything on your Mac. Highlight text and press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd>, or press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> to ask about a saved area of your screen. The answer arrives as a notification.
 </p>
 
 <p align="center">
@@ -23,17 +23,17 @@
   <img src="docs/card.png" width="380" alt="An answer shown as a floating card">
 </p>
 
-Noti AI sits in your menu bar. Select a word, an error message, a sentence in another language or a question, press the shortcut, and keep working. A few seconds later the answer shows up in the corner of your screen, so you never leave the app you're in.
+Noti AI sits in your menu bar. Select a word, an error message, a sentence in another language or a question, press the shortcut, and keep working. For things you can't select, such as text in an image, a chart or a video's subtitles, save an area of the screen once and press the second shortcut whenever you want to ask about it. A few seconds later the answer shows up in the corner of your screen, so you never leave the app you're in.
 
 ## Features
 
 | Feature | What it does |
 |---|---|
 | Any app | Works in browsers, PDFs, chat apps, code editors and Terminal. If you can select the text, you can ask about it. |
+| Screen area | Save a part of your screen once, then press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> to ask about whatever it shows. Handy for images, charts, subtitles and apps that won't let you copy text. |
 | Short answers | Explains, translates, defines or fact-checks in a few lines. Click an answer to read all of it. |
 | Choice of model | Claude, OpenAI, OpenRouter, or a model on your own Mac through Ollama or LM Studio. |
 | Notification or card | Shows answers as standard macOS notifications or as a floating card whose opacity you set. |
-| Screen area | Save a part of your screen once, then press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> to ask about whatever it shows. Handy for images, charts, subtitles and apps that won't let you copy text. |
 | Your own instructions | Tell the AI how to answer: always in Chinese, beginner-friendly, translation only, or anything else. |
 | Auto-hide | Answers disappear after a few seconds or when you start typing. Your clipboard keeps what you copied. |
 | Privacy | Sends text or a picture of your screen area only when you press a shortcut, and only to your chosen provider. The app has no account or analytics. |
@@ -77,7 +77,7 @@ This needs macOS 14 or later, **Screen Recording** permission, and a model that 
 5. Click **Allow** when macOS asks about notifications.
 6. If you use the screen area shortcut, turn on **Noti AI** in **System Settings › Privacy & Security › Screen & System Audio Recording**, then quit and reopen Noti AI.
 
-Then highlight some text and press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd>.
+Then highlight some text and press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>A</kbd>, or set a screen area and press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd>.
 
 > After you update to a new version, you may need to switch Accessibility and Screen Recording off and on again for Noti AI.
 

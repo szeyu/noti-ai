@@ -370,7 +370,7 @@ struct SettingsView: View {
                 .frame(width: 56, height: 56)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Noti AI").font(.system(size: 20, weight: .semibold))
-                Text("Highlight any text, press \(Hotkey.symbols(for: model.hotkey)), and the answer arrives as a notification.")
+                Text("Ask about highlighted text (\(Hotkey.symbols(for: model.hotkey))) or a saved area of your screen (\(Hotkey.symbols(for: model.regionHotkey))).")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
